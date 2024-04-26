@@ -1,0 +1,144 @@
+import net.fabricmc.loom.task.RemapJarTask
+
+plugins {
+	id 'fabric-loom' version '1.5-SNAPSHOT'
+	id 'maven-publish'
+	id "com.github.johnrengelman.shadow" version "7.1.2"
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+	archivesName = project.archives_base_name
+}
+
+repositories {
+	// Add repositories to retrieve artifacts from in here.
+	// You should only use this when depending on other mods because
+	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
+	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
+	// for more information about repositories.
+	maven { url 'https://maven.wispforest.io' }
+}
+
+dependencies {
+	// To change the versions see the gradle.properties file
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+	// Fabric API. This is technically optional, but you probably want it anyway.
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+	
+	// Uncomment the following line to enable the deprecated Fabric API modules. 
+	// These are included in the Fabric API production distribution and allow you to update your mod to the latest modules at a later more convenient time.
+
+	// modImplementation "net.fabricmc.fabric-api:fabric-api-deprecated:${project.fabric_version}"
+	modImplementation "io.wispforest:owo-lib:${project.owo_version}"
+	implementation "net.dv8tion:JDA:${project.jda_version}"
+	implementation "club.minnced:discord-webhooks:0.8.4"
+	// only if you plan to use owo-config
+	annotationProcessor "io.wispforest:owo-lib:${project.owo_version}"
+
+	//Web Connection Support
+	api("com.neovisionaries:nv-websocket-client:2.14")
+	api("com.squareup.okhttp3:okhttp:4.12.0")
+	// https://mvnrepository.com/artifact/com.squareup.okio/okio
+	api 'com.squareup.okio:okio:3.8.0'
+	// https://mvnrepository.com/artifact/com.squareup.okio/okio-jvm
+	api 'com.squareup.okio:okio-jvm:3.8.0'
+
+
+
+	//Opus library support
+	api("club.minnced:opus-java:1.1.1")
+
+	//Collections Utility
+	api("org.apache.commons:commons-collections4:4.4")
+	// https://mvnrepository.com/artifact/org.jetbrains.kotlin/kotlin-stdlib
+	api 'org.jetbrains.kotlin:kotlin-stdlib:1.9.22'
+	api 'net.sf.trove4j:core:3.1.0'
+
+	include("com.fasterxml.jackson.core:jackson-core:2.16.0")
+	include("com.fasterxml.jackson.core:jackson-databind:2.16.0")
+	include("com.fasterxml.jackson.core:jackson-annotations:2.16.0")
+	include("org.json:json:20230618")
+}
+
+processResources {
+	inputs.property "version", project.version
+
+	filesMatching("fabric.mod.json") {
+		expand "version": project.version
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 17
+}
+
+java {
+	// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
+	// if it is present.
+	// If you remove this line, sources will not be generated.
+	withSourcesJar()
+
+	sourceCompatibility = JavaVersion.VERSION_17
+	targetCompatibility = JavaVersion.VERSION_17
+}
+
+
+jar {
+	from("LICENSE") {
+		rename { "${it}_${project.base.archivesName.get()}"}
+	}
+}
+
+shadowJar {
+	archiveFileName = "discordchat-dev.jar"
+
+	dependencies {
+		exclude('net.fabricmc:.*')
+		include(dependency('de.maltesermailo.discordchat:.*'))
+		include(dependency('net.dv8tion:JDA:.*'))
+		include(dependency('club.minnced:discord-webhooks:.*'))
+		include(dependency("com.neovisionaries:nv-websocket-client:2.14"))
+		include(dependency("com.squareup.okhttp3:okhttp:4.12.0"))
+		include(dependency('com.squareup.okio:okio:3.8.0'))
+		include(dependency('com.squareup.okio:okio-jvm:3.8.0'))
+		include(dependency("org.apache.commons:commons-collections4:4.4"))
+		include(dependency('org.jetbrains.kotlin:kotlin-stdlib:1.9.22'))
+		include(dependency('net.sf.trove4j:core:3.1.0'))
+		exclude '/mappings/*'
+	}
+
+	relocate 'net.dv8tion.jda', 'de.maltesermailo.discordchat.lib.jda'
+	relocate 'club.minnced.discord', 'de.maltesermailo.discordchat.lib.webhook'
+}
+
+task remappedShadowJar(type: RemapJarTask) {
+	dependsOn tasks.shadowJar
+	input = tasks.shadowJar.archiveFile
+	addNestedDependencies = true
+	archiveFileName = "discordchat-final.jar"
+}
+
+tasks.assemble.dependsOn tasks.remappedShadowJar
+
+// configure the maven publication
+publishing {
+	publications {
+		mavenJava(MavenPublication) {
+			from components.java
+		}
+	}
+
+	// See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
+	repositories {
+		// Add repositories to publish to here.
+		// Notice: This block does NOT have the same function as the block in the top level.
+		// The repositories here will be used for publishing your artifact, not for
+		// retrieving dependencies.
+	}
+}
